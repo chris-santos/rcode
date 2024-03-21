@@ -1,5 +1,5 @@
 # Instalar e carregar o pacote
-install.packages("Rtsne", dependencies = TRUE)
+#install.packages("Rtsne", dependencies = TRUE)
 library(Rtsne)
 
 # prompt: ler o arquivo consolidado_4dft.csv p/ a variável my_data
@@ -30,17 +30,21 @@ tipos_num <- unlist(pca_data_full$cores_num)
 
 # Converter os grupos em fatores
 grupos_fatores <- as.factor(tipos_num)
-
+grupos_unicos <- unique(pca_data_full$grupo)
 # Plotar os resultados com cores correspondentes aos grupos
 plot(tsne_output$Y, col = grupos_fatores, pch = 20, xlab = "dimension 1", ylab = "dimension 2")
 legend("bottomleft", legend = grupos_unicos, col = 1:length(levels(grupos_fatores)), pch = 20)
 
 # Plot com dimensões 1 e 2
-plot(tsne_output$Y[, 2:3], col = grupos_fatores, pch = 20, xlab = "Dimension 2", ylab = "Dimension 3")
+plot(tsne_output$Y[, c(1,2)], col = grupos_fatores, pch = 20, xlab = "Dimension 1", ylab = "Dimension 2")
 
 # Plot com dimensões 1 e 3
-plot(tsne_output$Y[, c(1, 2)], col = grupos_fatores, pch = 20, xlab = "Dimension 1", ylab = "Dimension 2")
+plot(tsne_output$Y[, c(1, 3)], col = grupos_fatores, pch = 20, xlab = "Dimension 1", ylab = "Dimension 3")
+legend("bottomleft", legend = grupos_unicos, col = 1:length(levels(grupos_fatores)), pch = 20)
 
+# Plot com dimensões 2 e 3
+plot(tsne_output$Y[, c(2, 3)], col = grupos_fatores, pch = 20, xlab = "Dimension 1", ylab = "Dimension 2")
+legend("bottomright", legend = grupos_unicos, col = 1:length(levels(grupos_fatores)), pch = 20)
 
 # Carregar o pacote
 library(rgl)
@@ -50,35 +54,4 @@ plot3d(tsne_output$Y[, 1], tsne_output$Y[, 2], tsne_output$Y[, 3], col = grupos_
        xlab = "dimension 1", ylab = "dimension 2", zlab = "dimension 3",
        type = "p", size = 4)
 # Adicionar legenda
-legend3d("topleft", legend = grupos_unicos, col = 1:length(levels(grupos_fatores)), pch = 20)
-
-
-# pie chart ---------------------------------------------------------------
-
-# Load ggplot2
-library(ggplot2)
-grupos_unicos <- unique(pca_data_full$grupo)
-# Calcular a soma de cada grupo
-# Calcula o número de observações em cada grupo
-contagem_grupos <- table(pca_data_full$grupo)
-
-# Cria o gráfico de pizza
-pie(contagem_grupos, labels = names(contagem_grupos),
-    main = "Distribuição de Observações por Grupo",
-    col = cores_pca)
-# Adiciona os valores dentro de cada fatia
-percentual <- round(100 * contagem_grupos / sum(contagem_grupos), 1)
-
-text(posicao_x, posicao_y, labels = percentual, cex = 0.8)
-
-# Create Data
-piedata  <- data.frame(
-  group= grupos_unicos,
-  value= contagem_grupos
-)
-
-# Basic piechart
-ggplot(piedata, aes(x="", y= value.Freq, fill=group)) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0)
-  
+legend3d("bottomleft", legend = grupos_unicos, col = 1:length(levels(grupos_fatores)), pch = 20)
