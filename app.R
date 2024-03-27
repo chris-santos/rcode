@@ -1,4 +1,11 @@
+" install.packages('rsconnect')
+library(rsconnect)
+rsconnect::setAccountInfo(name='chris-santos',
+                          token='08DFC12BCE1A358A90385BDA593B50EE',
+                          secret='KVt1Rrrs4ZP+FiPeb+nOhAZk1TklW8XI0pc9MWtc')
 
+rsconnect::deployApp('E:\\Documentos\\CODIGOS\\R Code\\Orca_IR_extractor')
+"
 library(shiny)
 library(DT)
 library(ggplot2) 
@@ -16,9 +23,14 @@ ui <- fluidPage(
         inputId = "file",
         label = h4("Choose a file to upload...")
       ),
+      selectInput(
+        inputId = "methodSelected",
+        label = "Select convolution method",
+        choices = c("lorentzian", "gaussian")
+      ),
       
       sliderInput(inputId = "omega", label = "FWHM", min = 4, max = 50, value = 10, step = 2),
-      p("Made by Christiano dos Santos.", 
+      p("Author: Christiano dos Santos, PhD.", 
         a("Linkedin", href = "https://www.linkedin.com/in/christianosantos/"),
       ),
       p(a("ORCID", href = "https://orcid.org/0000-0001-6415-2714/"),),
@@ -26,11 +38,22 @@ ui <- fluidPage(
       img(
         src = "rosto.png", alt="foto de rosto",
         width = "70px", height = "70px"
-      )
+      ),
+      p("Infrared (IR) spectroscopy is essential for understanding molecular structure.
+      ORCA, a computational tool, accurately predicts IR spectra.", a("ORCA", href="https://orcaforum.kofo.mpg.de/index.php"),
+        "
+      However, spectrum analysis remains laborious.This tool automates IR spectrum extraction from ORCA output files. 
+      offering a user-friendly interface for rapid spectrum interpretation.
+
+    Features include ORCA output file parsing, automatic IR data extraction, and flexible analysis options,
+    including selection of convolution methods such as Lorentzian or Gaussian..
+    Users can download spectra for offline analysis.
+
+Keywords: Infrared Spectroscopy, ORCA, Spectrum Analysis, Automation, Computational Chemistry, Data Visualization
+")
     ),
-     # Main panel
+  # Main panel
   mainPanel(
-    hr(),
     dataTableOutput("fileContents"),  # Render the data table output
     plotOutput("plot"),  # Render the plot output
     downloadButton("downloadData", "Download Data")  # Botão de download
@@ -45,6 +68,12 @@ ui <- fluidPage(
 # Função para calcular a convolução de Lorentz
 convLorentz <- function(wave_j, frequency, T2_list, scale, omega) {
   intensity <- sum(scale * T2_list * omega / (4 * (wave_j - frequency)^2 + omega^2))
+  return(intensity)
+}
+
+# Função para calcular a convolução gaussiana
+convGauss <- function(wave_j, frequency, T2_list, scale, sigma) {
+  intensity <- sum(scale * T2_list * exp(-((wave_j - frequency) / sigma)^2))
   return(intensity)
 }
 
@@ -95,7 +124,7 @@ server <- function(input, output) {
     orca_data <- tryCatch({
       readLines(input$file$datapath)
     }, error = function(e) {
-      showNotification("Erro ao ler o arquivo", type = "error")
+      showNotification("Erro ao ler orca_data",)
       return(NULL)
     })
     
@@ -119,8 +148,11 @@ server <- function(input, output) {
     if (!file.exists(input$file$datapath)) {
       return(NULL)
     }
-    orca_data_df <- parseOrcaFile(orca_data)
-    orca_data_df
+    if (! is.null(orca_data)){
+      orca_data_df <- parseOrcaFile(orca_data)
+      orca_data_df
+    }
+    
     })
   
   
@@ -132,12 +164,24 @@ server <- function(input, output) {
     wave <- seq(400, 4000, by = 1)
     scale <- 1
     omega <- input$omega
+    metodo <- input$methodSelected
     
-    # Calcular a convolução de Lorentz
+    # Calcular a convolução com base no método selecionado
+    if (metodo == "lorentzian") {
+      calc_Intensity <- sapply(wave, function(wave_j) convLorentz(wave_j, freq_t_df()$freq, freq_t_df()$T2, scale, omega))
+    } 
+    else if (metodo == "gaussian") {
+      sigma <- input$omega  # Você precisará definir a entrada sigma no seu UI também
+      calc_Intensity <- sapply(wave, function(wave_j) convGauss(wave_j, freq_t_df()$freq, freq_t_df()$T2, scale, sigma))
+    }
+   
+    #showNotification(paste("Método: ", metodo, sep = " "))
+    
     calc_Intensity_Lorentz <- sapply(wave, function(wave_j) convLorentz(wave_j, freq_t_df()$freq, freq_t_df()$T2, scale, omega))
+  
     
     # Calcular a transmitância
-    transmittance <- 10^(-calc_Intensity_Lorentz)
+    transmittance <- 10^(-calc_Intensity)
     
     # Criar um DataFrame com os valores de onda e transmitância
     df_plot <- data.frame(wave = wave, transmittance = transmittance)
