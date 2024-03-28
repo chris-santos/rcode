@@ -1,11 +1,4 @@
- install.packages('rsconnect')
-library(rsconnect)
-rsconnect::setAccountInfo(name='chris-santos',
-                          token='08DFC12BCE1A358A90385BDA593B50EE',
-                          secret='KVt1Rrrs4ZP+FiPeb+nOhAZk1TklW8XI0pc9MWtc')
-
-rsconnect::deployApp('F://repo-local//shiny')
-
+# by Christiano dos Santos, PhD
 library(shiny)
 library(DT)
 library(ggplot2) 
