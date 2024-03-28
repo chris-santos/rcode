@@ -1,11 +1,11 @@
-" install.packages('rsconnect')
+ install.packages('rsconnect')
 library(rsconnect)
 rsconnect::setAccountInfo(name='chris-santos',
                           token='08DFC12BCE1A358A90385BDA593B50EE',
                           secret='KVt1Rrrs4ZP+FiPeb+nOhAZk1TklW8XI0pc9MWtc')
 
-rsconnect::deployApp('E:\\Documentos\\CODIGOS\\R Code\\Orca_IR_extractor')
-"
+rsconnect::deployApp('F://repo-local//shiny')
+
 library(shiny)
 library(DT)
 library(ggplot2) 
@@ -54,14 +54,11 @@ Keywords: Infrared Spectroscopy, ORCA, Spectrum Analysis, Automation, Computatio
     ),
   # Main panel
   mainPanel(
-    dataTableOutput("fileContents"),  # Render the data table output
+    DTOutput("fileContents"),  # Render the data table output
     plotOutput("plot"),  # Render the plot output
     downloadButton("downloadData", "Download Data")  # Botão de download
   )
-  ),
-  #  file upload manager
-  #fileInput("file", label = h2("File upload")),
- 
+  )
 )
 
 # Define server logic required to draw a histogram
@@ -103,12 +100,12 @@ parseOrcaFile <- function(orca_file){
     # Adicione os valores de freq e T ao data frame
     freq_t_df <- rbind(freq_t_df, data.frame(freq = freq, T2 = T2))
   }
+  freq_t_data <- freq_t_df
   return(freq_t_df)
 }
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-  
   
   # Definir um reativo global para freq_t_df
   freq_t_df <- reactive({
@@ -135,24 +132,38 @@ server <- function(input, output) {
     }
     
     # Retorna o data frame freq_t_df
+   
     freq_t_df <- parseOrcaFile(orca_data)
     return(freq_t_df)
   })
+  
+  
   
   output$fileContents <- renderDT({
     
     # Verifica se um arquivo foi carregado
     req(input$file)
-    
+   
     # Verifica se o arquivo existe
     if (!file.exists(input$file$datapath)) {
       return(NULL)
     }
-    if (! is.null(orca_data)){
-      orca_data_df <- parseOrcaFile(orca_data)
-      orca_data_df
+    # Tenta ler o conteúdo do arquivo
+    orca_data <- tryCatch({
+      readLines(input$file$datapath)
+    }, error = function(e) {
+      showNotification("Erro ao ler orca_data",)
+      return(NULL)
+    })
+    
+    # Verifica se a leitura foi bem-sucedida
+    if (is.null(orca_data)) {
+      showNotification("Erro: falha ao ler o conteúdo do arquivo", type = "error")
+      return(NULL)
     }
     
+    # Retorna o data frame freq_t_df
+    freq_t_df()
     })
   
   
