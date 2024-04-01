@@ -8,7 +8,7 @@ options(shiny.maxRequestSize=30*1024^2)
 ui <- fluidPage(
   
   # Application title
-  titlePanel("Get ORCA v.5 IR data from output file"),
+  titlePanel("Get ORCA v4 or v5 IR data from output file"),
   hr(),
   sidebarLayout(
     sidebarPanel(
@@ -47,8 +47,9 @@ Keywords: Infrared Spectroscopy, ORCA, Spectrum Analysis, Automation, Computatio
     ),
   # Main panel
   mainPanel(
-    DTOutput("fileContents"),  # Render the data table output
     plotOutput("plot"),  # Render the plot output
+    DTOutput("fileContents"),  # Render the data table output
+    
     downloadButton("downloadData", "Download Data")  # Botão de download
   )
   )
@@ -63,38 +64,104 @@ convLorentz <- function(wave_j, frequency, T2_list, scale, omega) {
 
 # Função para calcular a convolução gaussiana
 convGauss <- function(wave_j, frequency, T2_list, scale, sigma) {
-  intensity <- sum(scale * T2_list * exp(-((wave_j - frequency) / sigma)^2))
+  intensity <- sum((1/sqrt(2)) * T2_list * exp(-((wave_j - frequency) / (2*sigma))^2))
   return(intensity)
 }
 
-parseOrcaFile <- function(orca_file){
-  # Encontre os índices das linhas contendo "IR SPECTRUM" e "-----"
-  start_idx <- which(grepl("IR SPECTRUM", orca_file))
-  end_idx <- which(grepl("Dirac delta", orca_file))
-  
-  # Extraia as linhas relevantes - remova 6 linhas de cabeçalho e 2 de cauda
-  vib_lines <- orca_file[(start_idx + 6):(end_idx - 2)]
-  
-  # Crie um data frame vazio para armazenar freq e T2
-  freq_t_df <- data.frame(freq = numeric(0), T2 = numeric(0))
-  
-  # Iterar sobre cada linha em vib_lines
-  for (line in vib_lines) {
-    # Trim espaços em branco à esquerda e à direita
-    trimmed_line <- trimws(line, which = "both")
-    
-    # Divida a linha pelo número consecutivo de espaços usando a expressão regular '\\s+'
-    line_values <- unlist(strsplit(trimmed_line, "\\s+"))
-    
-    # Extraia o segundo e quinto valores da linha dividida
-    freq <- as.numeric(line_values[2])
-    T2 <- as.numeric(line_values[5])
-    
-    # Adicione os valores de freq e T ao data frame
-    freq_t_df <- rbind(freq_t_df, data.frame(freq = freq, T2 = T2))
+identifyOrcaVersion <- function(file_content) {
+  #print(file_content)
+  # Verifica se a linha contém a versão 4
+  if (any(grepl("Program Version 4", file_content))) {
+    showNotification("Orca Version 4", type = "warning")
+    return("Version 4")
   }
-  freq_t_data <- freq_t_df
-  return(freq_t_df)
+  # Verifica se a linha contém a versão 5
+  else if (any(grepl("Program Version 5", file_content))) {
+    showNotification("Orca Version 5", type = "warning")
+    return("Version 5")
+  }
+  else {
+    return("Unknown Version")
+  }
+}
+
+
+parseOrcaFile <- function(orca_file){
+  orca_data_first_50_lines <- head(orca_file, 50)
+  
+  orca_Version <- identifyOrcaVersion(orca_data_first_50_lines)
+  
+  # Processamento para a versão 4
+  if (orca_Version == "Version 4") {
+    # Encontre o índice da linha contendo "IR SPECTRUM"
+    start_idx <- which(grepl("IR SPECTRUM", orca_file))
+    start_idx <- start_idx[1]  # Pega apenas o primeiro índice
+    
+    # A partir da linha "IR SPECTRUM", conte 5 linhas para começar a extração
+    start_idx <- start_idx + 5
+    
+    # Encontre o índice da linha contendo "The first frequency considered to be a vibration is"
+    end_idx <- which(grepl("The first frequency considered to be a vibration is", orca_file))
+    end_idx <- end_idx[length(end_idx)]  # Pegue o último índice
+    
+    # A última linha com valores está 2 linhas antes dessa linha final
+    end_idx <- end_idx - 2
+    
+    # Extraia as linhas relevantes
+    vib_lines <- orca_file[start_idx:end_idx]
+    
+    # Crie um data frame vazio para armazenar freq e T2
+    freq_t_df <- data.frame(freq = numeric(0), T2 = numeric(0))
+    
+    # Iterar sobre cada linha em vib_lines
+    for (line in vib_lines) {
+      # Trim espaços em branco à esquerda e à direita
+      trimmed_line <- trimws(line, which = "both")
+      
+      # Divida a linha pelo número consecutivo de espaços usando a expressão regular '\\s+'
+      line_values <- unlist(strsplit(trimmed_line, "\\s+"))
+      
+      # Extraia o segundo e quinto valores da linha dividida (freq e T2)
+      freq <- as.numeric(line_values[2])
+      T2 <- as.numeric(line_values[3])  # Aqui você pode ajustar o índice conforme necessário
+      
+      # Adicione os valores de freq e T2 ao data frame
+      freq_t_df <- rbind(freq_t_df, data.frame(freq = freq, T2 = T2))
+    }
+    freq_t_data <- freq_t_df
+    return(freq_t_df)
+  
+  }
+  else if (orca_Version == "Version 5") {
+    # Encontre os índices das linhas contendo "IR SPECTRUM" e "-----"
+    start_idx <- which(grepl("IR SPECTRUM", orca_file))
+    end_idx <- which(grepl("Dirac delta", orca_file))
+    
+    # Extraia as linhas relevantes - remova 6 linhas de cabeçalho e 2 de cauda
+    vib_lines <- orca_file[(start_idx + 6):(end_idx - 2)]
+    
+    # Crie um data frame vazio para armazenar freq e T2
+    freq_t_df <- data.frame(freq = numeric(0), T2 = numeric(0))
+    
+    # Iterar sobre cada linha em vib_lines
+    for (line in vib_lines) {
+      # Trim espaços em branco à esquerda e à direita
+      trimmed_line <- trimws(line, which = "both")
+      
+      # Divida a linha pelo número consecutivo de espaços usando a expressão regular '\\s+'
+      line_values <- unlist(strsplit(trimmed_line, "\\s+"))
+      
+      # Extraia o segundo e quinto valores da linha dividida
+      freq <- as.numeric(line_values[2])
+      T2 <- as.numeric(line_values[5])
+      
+      # Adicione os valores de freq e T ao data frame
+      freq_t_df <- rbind(freq_t_df, data.frame(freq = freq, T2 = T2))
+    }
+    freq_t_data <- freq_t_df
+    return(freq_t_df)
+  }
+  
 }
 
 # Define server logic required to draw a histogram
@@ -123,13 +190,13 @@ server <- function(input, output) {
       showNotification("Erro: falha ao ler o conteúdo do arquivo", type = "error")
       return(NULL)
     }
+    else {
+      freq_t_df <- parseOrcaFile(orca_data)
+      return(freq_t_df)
+    }
     
-    # Retorna o data frame freq_t_df
-   
-    freq_t_df <- parseOrcaFile(orca_data)
-    return(freq_t_df)
+    
   })
-  
   
   
   output$fileContents <- renderDT({
@@ -179,9 +246,7 @@ server <- function(input, output) {
       calc_Intensity <- sapply(wave, function(wave_j) convGauss(wave_j, freq_t_df()$freq, freq_t_df()$T2, scale, sigma))
     }
    
-    #showNotification(paste("Método: ", metodo, sep = " "))
-    
-    calc_Intensity_Lorentz <- sapply(wave, function(wave_j) convLorentz(wave_j, freq_t_df()$freq, freq_t_df()$T2, scale, omega))
+    calc_Intensity <- calc_Intensity/max(calc_Intensity)
   
     
     # Calcular a transmitância
@@ -193,7 +258,7 @@ server <- function(input, output) {
     # Plotar os valores de onda versus transmitância
     ggplot(df_plot, aes(x = wave, y = transmittance)) +
       geom_line() +
-      labs(x = "Wave", y = "Transmittance") +
+      labs(x = "Wavenumber/cm", y = "Transmittance - %") +
       ggtitle(paste("Transmittance x Wavenumber -", input$file$name))
   })
   
